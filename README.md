@@ -328,18 +328,20 @@ cp 10-ssh-auth-sock.fish ~/.config/fish/conf.d/
 # sudo sed -i 's/\(block\) \(filesystems\)/\1 sd-encrypt \2/' /etc/mkinitcpio.conf
 
 # 7. fstab optimization (skip on btrfs with subvolumes - check first!)
-grep -E 'subvol=|compress=' /etc/fstab && echo "SKIP: btrfs detected" || {
+if grep -qE 'subvol=|compress=' /etc/fstab
+    echo "SKIP: btrfs detected"
+else
     sudo cp /etc/fstab /etc/fstab.bak
     sudo sed -i -E \
         -e 's/^(\S+\s+\/boot\s+\S+\s+)\S+/\1defaults,umask=0077/' \
         -e 's/^(\S+\s+\/\s+\S+\s+)\S+/\1defaults,noatime,lazytime,commit=60/' \
         -e 's/^(\S+\s+\/tmp\s+\S+\s+)\S+/\1defaults,noatime,lazytime,mode=1777/' \
         /etc/fstab
-}
+end
 
 # 8. Remove conflicting packages
 for pkg in power-profiles-daemon plymouth cachyos-plymouth-bootanimation ufw ananicy-cpp
-    pacman -Qi $pkg &>/dev/null; and sudo pacman -Rns --noconfirm $pkg
+    pacman -Qi $pkg >/dev/null 2>&1; and sudo pacman -Rns --noconfirm $pkg
 end
 
 # 9. Mask services (skip lvm2-monitor if using LVM - check with: sudo pvs)
@@ -379,7 +381,7 @@ sudo pacman -Sc --noconfirm
 # 14. WiFi reconnection (LAST - may disconnect)
 set -l wlan (iwctl device list 2>/dev/null | awk '/station/{print $2;exit}')
 test -z "$wlan"; and set wlan (ip -o link show | awk -F': ' '/wl[a-z0-9]+/{print $2;exit}')
-test -z "$wlan"; and echo "No WiFi interface found" && exit 1
+test -z "$wlan"; and echo "No WiFi interface found"; and exit 1
 
 read -P "WiFi SSID: " ssid
 read -sP "WiFi passphrase: " pass; echo
@@ -531,14 +533,20 @@ Run `./ry-install.fish --verify` for comprehensive checks, or `--verify-static` 
 | **sdboot-manage.conf** | LINUX_OPTIONS | All kernel parameters present |
 | | tsc=reliable safety | constant_tsc CPU flag present |
 | **99-cachyos-udev.rules** | power_dpm rule | Present |
+| | ACTION match | add |
+| | SUBSYSTEM match | drm |
 | | DRIVERS match | amdgpu |
 | **99-cachyos-udev.rules** | KERNEL match | ntsync |
 | | MODE | 0666 |
 | **99-cachyos-modules.conf** | Module entry | ntsync |
 | **amdgpu-performance.service** | ExecStart | power_dpm_force_performance_level |
 | | After | graphical.target |
+| | ConditionPathIsDirectory | /sys/class/drm |
+| | WantedBy | graphical.target |
 | **cpupower-epp.service** | ExecStart | energy_performance_preference, scaling_governor |
 | | After | cpupower.service |
+| | Wants | cpupower.service |
+| | WantedBy | multi-user.target |
 | | Type | oneshot |
 | | RemainAfterExit | yes |
 | **environment** | AMD_VULKAN_ICD | RADV |
@@ -624,11 +632,11 @@ systemctl is-active cpupower-epp.service fstrim.timer
 # Expected: active (or exited for cpupower-epp)
 
 # ntsync (kernel 6.13+)
-test -c /dev/ntsync && echo "ntsync: OK" || echo "ntsync: not available"
+test -c /dev/ntsync; and echo "ntsync: OK"; or echo "ntsync: not available"
 lsmod | grep ntsync
 
 # constant_tsc (required for tsc=reliable)
-grep -q constant_tsc /proc/cpuinfo && echo "constant_tsc: OK" || echo "constant_tsc: MISSING"
+grep -q constant_tsc /proc/cpuinfo; and echo "constant_tsc: OK"; or echo "constant_tsc: MISSING"
 
 # Environment variables
 printenv | grep -E 'AMD_VULKAN|RADV_PERFTEST|MESA_SHADER|PROTON'

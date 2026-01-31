@@ -832,6 +832,7 @@ function verify_static
         _chk_grep "$epp_path" 'energy_performance_preference' "EPP setting command"
         _chk_grep "$epp_path" 'scaling_governor' "Governor setting command"
         _chk_grep "$epp_path" 'After=cpupower.service' "Runs after cpupower.service"
+        _chk_grep "$epp_path" 'Wants=cpupower.service' "Wants cpupower.service"
         _chk_grep "$epp_path" 'Type=oneshot' "Service type oneshot"
         _chk_grep "$epp_path" 'RemainAfterExit=yes' "RemainAfterExit=yes"
         _chk_grep "$epp_path" 'WantedBy=multi-user.target' "WantedBy multi-user.target"
@@ -921,10 +922,10 @@ function verify_static
         # Check [General] section
         _chk_grep /etc/iwd/main.conf '\[General\]' "[General] section"
         _chk_grep /etc/iwd/main.conf 'EnableNetworkConfiguration=false' "EnableNetworkConfiguration=false"
-        _chk_grep /etc/iwd/main.conf 'DefaultInterface=\*' "DefaultInterface=*"
         
         # Check [DriverQuirks] section
         _chk_grep /etc/iwd/main.conf '\[DriverQuirks\]' "[DriverQuirks] section"
+        _chk_grep /etc/iwd/main.conf 'DefaultInterface=\*' "DefaultInterface=*"
         set -l psd (grep '^PowerSaveDisable=' /etc/iwd/main.conf 2>/dev/null)
         if test -n "$psd"
             _ok "  PowerSaveDisable: "(string replace 'PowerSaveDisable=' '' "$psd")
