@@ -1,0 +1,23 @@
+# Wireless regulatory domain
+# /etc/conf.d/wireless-regdom
+#
+# Sets the wireless regulatory domain for WiFi channel and power limits.
+# Different countries have different allowed frequencies and power levels.
+#
+# IMPORTANT: The installer will prompt you to set your country code.
+# If you're not in the US, change this value to your country code.
+#
+# Using the wrong regdom may:
+#   - Prevent access to certain WiFi channels
+#   - Limit transmit power (reduced range)
+#   - Violate local radio regulations
+#
+# List available regdoms: iw reg get
+# Check current regdom:   iw reg get | head -1
+#
+# Common codes: US, GB, DE, FR, JP, AU, CA, CN, KR, TW, IN, BR, MX
+#
+# Validated: File location and format correct per Arch Wiki.
+# See: https://wiki.archlinux.org/title/Network_configuration/Wireless#Respecting_the_regulatory_domain
+
+WIRELESS_REGDOM="US"

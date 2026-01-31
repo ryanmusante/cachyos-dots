@@ -1,0 +1,33 @@
+# CachyOS udev rules
+# /etc/udev/rules.d/99-cachyos-udev.rules
+#
+# Combined udev rules for AMD GPU performance and ntsync device.
+# Consolidates: 99-amdgpu-performance.rules, 99-ntsync.rules
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# AMDGPU - Set GPU to high performance mode on device add
+# ═══════════════════════════════════════════════════════════════════════════════
+# Sets power_dpm_force_performance_level to "high" for all AMD GPUs.
+# This keeps the GPU at high clocks for consistent gaming performance.
+#
+# NOTE: Due to driver init timing (Arch bug #72655), this rule may fail silently.
+# If GPU shows 'auto' after boot, enable amdgpu-performance.service as fallback.
+#
+# Verify: cat /sys/class/drm/card*/device/power_dpm_force_performance_level
+
+ACTION=="add", SUBSYSTEM=="drm", KERNEL=="card[0-9]", DRIVERS=="amdgpu", ATTR{device/power_dpm_force_performance_level}="high"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# NTSYNC - Set permissions for Wine/Proton NT synchronization device
+# ═══════════════════════════════════════════════════════════════════════════════
+# Makes /dev/ntsync read/write accessible for Wine/Proton games.
+# Required alongside ntsync module for PROTON_USE_NTSYNC=1 to work.
+#
+# MODE=0666 is required because Wine/Proton needs write access to create
+# synchronization objects. This is the kernel default as of 6.14+.
+# The ntsync driver provides inherent isolation (each fd is isolated),
+# so world-writable permissions carry minimal security risk.
+#
+# Verify: ls -la /dev/ntsync (should show crw-rw-rw-)
+
+KERNEL=="ntsync", MODE="0666"

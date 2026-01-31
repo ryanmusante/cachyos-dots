@@ -1,0 +1,41 @@
+# cpupower-epp.service - Set Energy Performance Preference to performance
+# /etc/systemd/system/cpupower-epp.service
+#
+# The cpupower.service sets the governor, but with amd_pstate=active driver,
+# the Energy Performance Preference (EPP) must also be set explicitly.
+#
+# This service runs AFTER cpupower.service to ensure EPP is set to "performance"
+# on all CPUs, fixing the common issue where:
+#   [FAIL] Governor: powersave (expected: performance)
+#   [FAIL] EPP: balance_performance (expected: performance)
+#
+# Note: Uses bash for shopt -s nullglob (glob pattern that expands to nothing if no matches).
+#
+# Verification:
+#   cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
+#   cat /sys/devices/system/cpu/cpu0/cpufreq/energy_performance_preference
+#
+# See: https://docs.kernel.org/admin-guide/pm/amd-pstate.html
+
+[Unit]
+Description=Set CPU Energy Performance Preference to performance
+Documentation=https://wiki.archlinux.org/title/CPU_frequency_scaling
+After=cpupower.service
+Wants=cpupower.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+
+# Multiple ExecStart= lines are valid for Type=oneshot services
+# Each command runs sequentially; all must succeed for service to be "active"
+
+# Set EPP to performance on all CPUs
+# The performance governor hint + performance EPP = maximum performance
+ExecStart=/bin/bash -c 'shopt -s nullglob; for cpu in /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference; do [ -w "$cpu" ] && echo performance > "$cpu"; done; exit 0'
+
+# Also explicitly set governor in case cpupower.service didn't apply it
+ExecStart=/bin/bash -c 'shopt -s nullglob; for cpu in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do [ -w "$cpu" ] && echo performance > "$cpu"; done; exit 0'
+
+[Install]
+WantedBy=multi-user.target

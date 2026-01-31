@@ -1,0 +1,47 @@
+# Global environment variables
+# /etc/environment
+#
+# Read by PAM on login; applies to all sessions (graphical and terminal).
+# Format: KEY=value (no 'export', no shell expansion, no quotes needed for simple values)
+#
+# See: https://wiki.archlinux.org/title/Environment_variables#Per_user
+
+# ============================================================================
+# Vulkan / AMD GPU
+# ============================================================================
+
+# AMD_VULKAN_ICD: Select Vulkan driver
+#   RADV   - Mesa's open-source Vulkan driver (recommended for gaming)
+#   AMDVLK - AMD's official open-source driver
+AMD_VULKAN_ICD=RADV
+
+# RADV_PERFTEST: Enable RADV performance features
+#   sam - Smart Access Memory / ReBAR for full VRAM access
+# Strix Halo (gfx1151) is new silicon; explicit enable ensures features active.
+# Note: Mesa 23.1+ auto-detects ReBAR and enables GPL by default; sam ensures explicit activation
+# Verify: RADV_DEBUG=info vulkaninfo 2>&1 | grep -E 'sam|rebar|resizable'
+RADV_PERFTEST=sam
+
+# ============================================================================
+# Mesa
+# ============================================================================
+
+# MESA_SHADER_CACHE_MAX_SIZE: Shader cache size limit
+# Larger cache = fewer shader compilation stutters in games
+# 12G is appropriate for systems with ample storage; reduce for smaller drives
+MESA_SHADER_CACHE_MAX_SIZE=12G
+
+# ============================================================================
+# Proton / Wine (Steam Play)
+# ============================================================================
+
+# PROTON_USE_NTSYNC: Use kernel ntsync for NT synchronization primitives
+# Requires kernel 6.13+ with CONFIG_NTSYNC=y; improves game performance
+# Falls back gracefully if not available
+# Verify support: zgrep CONFIG_NTSYNC /proc/config.gz
+# Check device exists: test -c /dev/ntsync && echo OK
+PROTON_USE_NTSYNC=1
+
+# PROTON_NO_WM_DECORATION: Disable window decorations in windowed mode
+# Reduces visual clutter and potential compatibility issues
+PROTON_NO_WM_DECORATION=1

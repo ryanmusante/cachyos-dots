@@ -1,0 +1,30 @@
+# amdgpu-performance.service
+# /etc/systemd/system/amdgpu-performance.service
+#
+# Optional fallback for udev timing issue (Arch bug #72655).
+# Enable if 99-amdgpu-performance.rules fails to apply on boot.
+#
+# The udev rule should handle this automatically, but due to driver
+# initialization timing, the sysfs attribute may not exist when udev runs.
+# This service runs after graphical.target as a reliable fallback.
+#
+# Note: Uses bash for shopt -s nullglob (glob pattern that expands to nothing if no matches).
+#
+# Enable: sudo systemctl enable amdgpu-performance.service
+# Verify: cat /sys/class/drm/card*/device/power_dpm_force_performance_level
+#
+# See: https://wiki.archlinux.org/title/AMDGPU#Power_management
+
+[Unit]
+Description=Set AMDGPU power_dpm_force_performance_level to high
+After=graphical.target
+# Only run if DRM subsystem is present (supports multi-GPU systems)
+ConditionPathIsDirectory=/sys/class/drm
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash -c 'shopt -s nullglob; for f in /sys/class/drm/card*/device/power_dpm_force_performance_level; do [ -f "$f" ] && [ -w "$f" ] && echo high > "$f"; done; exit 0'
+
+[Install]
+WantedBy=graphical.target
