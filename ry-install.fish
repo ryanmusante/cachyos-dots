@@ -1161,7 +1161,7 @@ function verify_static
 
     # User service (socket activation shows as indirect)
     set -l ssh_state (systemctl --user is-enabled ssh-agent.service 2>/dev/null)
-    if test "$ssh_state" = enabled -o "$ssh_state" = indirect
+    if test "$ssh_state" = enabled; or test "$ssh_state" = indirect
         _ok "  ssh-agent.service (user): $ssh_state"
     else
         _fail "  ssh-agent.service (user): $ssh_state (expected: enabled or indirect)"
@@ -1492,6 +1492,39 @@ function verify_runtime
         _info "  nvme_core: module not loaded (no NVMe drives?)"
     end
     
+    # amdgpu module parameters
+    if test -d /sys/module/amdgpu/parameters
+        for pair in "modeset:1" "cwsr_enable:0" "gpu_recovery:1" "runpm:0"
+            set -l pname (string split ':' "$pair")[1]
+            set -l expected (string split ':' "$pair")[2]
+            set -l ppath /sys/module/amdgpu/parameters/$pname
+            if test -f "$ppath"
+                set -l v (cat "$ppath" 2>/dev/null)
+                if test "$v" = "$expected"
+                    _ok "  amdgpu.$pname: $v"
+                else
+                    _fail "  amdgpu.$pname: $v (expected: $expected)"
+                end
+            end
+        end
+    else
+        _warn "  amdgpu: module not loaded"
+    end
+    
+    # mt7925e disable_aspm (hardware-specific, skip if driver absent)
+    if test -d /sys/module/mt7925e
+        if test -f /sys/module/mt7925e/parameters/disable_aspm
+            set -l v (cat /sys/module/mt7925e/parameters/disable_aspm 2>/dev/null)
+            if test "$v" = "Y"; or test "$v" = "1"
+                _ok "  mt7925e.disable_aspm: $v"
+            else
+                _fail "  mt7925e.disable_aspm: $v (expected: Y or 1)"
+            end
+        end
+    else
+        _info "  mt7925e: module not loaded (no MediaTek WiFi 7 hardware?)"
+    end
+    
     # nmi_watchdog (sysctl)
     if test -f /proc/sys/kernel/nmi_watchdog
         set -l v (cat /proc/sys/kernel/nmi_watchdog 2>/dev/null)
@@ -1518,7 +1551,7 @@ function verify_runtime
     
     # cpupower-epp.service sets EPP to performance (oneshot, RemainAfterExit=yes)
     set -l epp_state (systemctl is-active cpupower-epp.service 2>/dev/null)
-    if test "$epp_state" = active -o "$epp_state" = exited
+    if test "$epp_state" = active; or test "$epp_state" = exited
         _ok "  cpupower-epp.service: $epp_state"
     else if test -f /etc/systemd/system/cpupower-epp.service
         _fail "  cpupower-epp.service: $epp_state (expected: active or exited)"
@@ -1669,6 +1702,37 @@ function verify_runtime
     end
     echo
 
+    # ── NetworkManager runtime state ───────────────────────────────────────────
+    echo "── NetworkManager runtime ──"
+    _log "CHECK: NetworkManager runtime"
+    
+    # Logging level (live query — wifi.backend checked in verify_static)
+    set -l nm_log_level (nmcli general logging 2>/dev/null | awk 'NR==2 {print $1}')
+    _log "NM_LOG_LEVEL: $nm_log_level"
+    if test "$nm_log_level" = "ERR"
+        _ok "  Logging level: $nm_log_level"
+    else if test -n "$nm_log_level"
+        _fail "  Logging level: $nm_log_level (expected: ERR)"
+    else
+        _warn "  Logging level: could not determine"
+    end
+    echo
+
+    # ── systemd-resolved runtime state ─────────────────────────────────────────
+    echo "── systemd-resolved runtime ──"
+    _log "CHECK: resolved runtime"
+    
+    set -l mdns_state (resolvectl status 2>/dev/null | awk '/MulticastDNS/ {print $NF; exit}')
+    _log "RESOLVED_MDNS: $mdns_state"
+    if test "$mdns_state" = "no"
+        _ok "  MulticastDNS: $mdns_state"
+    else if test -n "$mdns_state"
+        _fail "  MulticastDNS: $mdns_state (expected: no)"
+    else
+        _warn "  MulticastDNS: could not determine (resolved not running?)"
+    end
+    echo
+
     # ════════════════════════════════════════════════════════════════════════════
     # SYSTEMD RUNTIME STATE
     # ════════════════════════════════════════════════════════════════════════════
@@ -1743,14 +1807,6 @@ function verify_runtime
     else
         _fail "    DefaultTimeoutAbortUSec: $v_abort_u (expected: 15s)"
     end
-    echo
-
-    # ── Journal usage ───────────────────────────────────────────────────────────
-    echo "── Journal usage ──"
-    _log "CHECK: journal"
-    
-    echo "  Current usage:"
-    journalctl --disk-usage 2>/dev/null | tee -a "$LOG_FILE" | sed 's/^/    /'
     echo
 
     # ── Console/Keymap ──────────────────────────────────────────────────────────
@@ -1988,7 +2044,7 @@ function do_install
             else if test "$DRY" = true
                 set_color cyan; echo "[DRY] Would set WIRELESS_REGDOM=\"$regdom_upper\""; set_color normal
             else
-                _run "sudo sed -i 's/WIRELESS_REGDOM=\"US\"/WIRELESS_REGDOM=\"$regdom_upper\"/' /etc/conf.d/wireless-regdom"
+                _run "sudo sed -i 's/WIRELESS_REGDOM=\"[A-Z]*\"/WIRELESS_REGDOM=\"$regdom_upper\"/' /etc/conf.d/wireless-regdom"
                 _ok "Set regulatory domain to: $regdom_upper"
             end
         else

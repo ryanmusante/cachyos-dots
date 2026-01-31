@@ -142,7 +142,7 @@ Set in `/etc/environment`, applied to all sessions via PAM.
 | **sp5100_tco blacklist** | AMD-specific watchdog. Intel systems should blacklist `iTCO_wdt` instead. |
 | **eval in _run()** | Required for command string parsing. All inputs are controlled by the script; user-provided values (WiFi credentials) are escaped before use. |
 | **LINUX_OPTIONS single line** | sdboot-manage requires kernel parameters on a single line in the config file. |
-| **Regulatory domain defaults US** | Installer prompts for country code. Common codes: US, GB, DE, FR, JP, AU, CA, CN. |
+| **Regulatory domain defaults US** | Installer prompts for country code. Common codes: US, GB, DE, FR, JP, AU, CA, CN. Re-running updates any previously set code. |
 | **Microcode after autodetect** | Only includes microcode for current CPU (smaller image). Move before `autodetect` for portable/multi-system images. |
 | **No automatic rollback** | Backup created at `~/.backup`. Manual restore required if issues occur. |
 | **KERNEL=="card[0-9]"** | Udev rule matches card0-9 only. Systems with 10+ GPUs would need `card[0-9]*` pattern. |
@@ -386,11 +386,7 @@ test -z "$wlan"; and echo "No WiFi interface found"; and exit 1
 read -P "WiFi SSID: " ssid
 read -sP "WiFi passphrase: " pass; echo
 
-# Escape special characters
-set -l e_ssid (string replace -a '\\' '\\\\' -- "$ssid" | string replace -a "'" "'\\''" | string replace -a '$' '\\$')
-set -l e_pass (string replace -a '\\' '\\\\' -- "$pass" | string replace -a "'" "'\\''" | string replace -a '$' '\\$')
-
-iwctl --passphrase "$e_pass" station $wlan connect "$e_ssid"
+iwctl --passphrase "$pass" station $wlan connect "$ssid"
 ```
 
 ## COSMIC Desktop
@@ -596,6 +592,15 @@ Run `./ry-install.fish --verify` for comprehensive checks, or `--verify-static` 
 | | SAM/ReBAR | Enabled (if BIOS supports) |
 | **Modules** | sp5100_tco | Not loaded |
 | | ntsync | Loaded (kernel 6.13+) |
+| **Module parameters** | amdgpu.modeset | 1 |
+| | amdgpu.cwsr_enable | 0 |
+| | amdgpu.gpu_recovery | 1 |
+| | amdgpu.runpm | 0 |
+| | mt7925e.disable_aspm | Y or 1 (skipped if driver absent) |
+| | btusb.enable_autosuspend | N |
+| | usbcore.autosuspend | -1 |
+| | nvme_core.default_ps_max_latency_us | 0 |
+| | kernel.nmi_watchdog | 0 |
 | **Services** | cpupower-epp.service | active or exited |
 | | fstrim.timer | active |
 | | amdgpu-performance.service | active (if installed) |
@@ -605,10 +610,12 @@ Run `./ry-install.fish --verify` for comprehensive checks, or `--verify-static` 
 | **WiFi** | Interface | Detected |
 | | iwd process | Running |
 | | Regulatory domain | Matches wireless-regdom |
-| **Systemd** | DefaultTimeoutStartUSec | 30s |
-| | DefaultTimeoutStopUSec | 15s |
-| | DefaultTimeoutAbortUSec | 15s |
-| | Journal usage | Reported (no configured limit) |
+| | Power save | off |
+| **NetworkManager** | Logging level | ERR |
+| **systemd-resolved** | MulticastDNS | no |
+| **Journal** | Journal usage | Reported (no configured limit) |
+| **Console** | VC Keymap | us (informational) |
+| | X11 Layout | Reported |
 
 ### Quick Runtime Check
 
@@ -642,6 +649,23 @@ grep -q constant_tsc /proc/cpuinfo; and echo "constant_tsc: OK"; or echo "consta
 
 # Environment variables
 printenv | grep -E 'AMD_VULKAN|RADV_PERFTEST|MESA_SHADER|PROTON'
+
+# AMDGPU module parameters
+for p in modeset cwsr_enable gpu_recovery runpm
+    echo "amdgpu.$p: "(cat /sys/module/amdgpu/parameters/$p 2>/dev/null; or echo "N/A")
+end
+
+# WiFi power save
+iw dev wlan0 get power_save
+# Expected: off
+
+# NM logging level
+nmcli general logging | awk 'NR==2 {print "NM log level: "$1}'
+# Expected: ERR
+
+# resolved mDNS
+resolvectl status | grep -i multicast
+# Expected: MulticastDNS setting: no
 ```
 
 ## License
