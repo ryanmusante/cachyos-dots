@@ -614,7 +614,7 @@ function do_diff
         end
     end
 
-    # Check optional service
+    # Check optional service (amdgpu-performance.service)
     set -l p (string split ':' "$OPTIONAL_SERVICE")
     set -l svc_src $p[1]
     set -l svc_dst $p[2]$p[1]
@@ -628,6 +628,24 @@ function do_diff
             end
         else
             _info "NOT INSTALLED (optional): $svc_dst"
+        end
+    end
+
+    # Check EPP service (cpupower-epp.service)
+    set -l p2 (string split ':' "$EPP_SERVICE")
+    set -l epp_src $p2[1]
+    set -l epp_dst $p2[2]$p2[1]
+    if test -f "$DIR/$epp_src"
+        if test -f "$epp_dst"
+            if not diff -q "$DIR/$epp_src" "$epp_dst" >/dev/null 2>&1
+                set has_diff true
+                _warn "DIFFERS: $epp_src"
+                diff --color=auto "$DIR/$epp_src" "$epp_dst" | tee -a "$LOG_FILE"
+                echo
+            end
+        else
+            set has_diff true
+            _fail "NOT INSTALLED: $epp_dst"
         end
     end
 
@@ -808,6 +826,7 @@ function verify_static
         _chk_grep "$svc_path" 'power_dpm_force_performance_level' "GPU DPM command"
         _chk_grep "$svc_path" 'After=graphical.target' "Runs after graphical.target"
         _chk_grep "$svc_path" 'Type=oneshot' "Service type oneshot"
+        _chk_grep "$svc_path" 'RemainAfterExit=yes' "RemainAfterExit=yes"
         _chk_grep "$svc_path" 'ConditionPathIsDirectory=/sys/class/drm' "Condition: /sys/class/drm exists"
         _chk_grep "$svc_path" 'WantedBy=graphical.target' "WantedBy graphical.target"
         
@@ -1601,7 +1620,7 @@ function verify_runtime
     set -l wlan_iface ""
     for iface in /sys/class/net/*/wireless
         if test -d "$iface"
-            set wlan_iface (dirname "$iface" | xargs basename)
+            set wlan_iface (basename (dirname "$iface"))
             break
         end
     end
@@ -1662,7 +1681,7 @@ function verify_runtime
     # ── Journal disk usage ──────────────────────────────────────────────────────
     echo "── Journal disk usage ──"
     _log "CHECK: journal disk usage"
-    set -l journal_usage (journalctl --disk-usage 2>/dev/null | grep -oP '\d+(\.\d+)?[KMGT]?B' | head -1)
+    set -l journal_usage (journalctl --disk-usage 2>/dev/null | grep -oE '[0-9]+(\.[0-9]+)?[KMGT]?B' | head -1)
     _log "JOURNAL_USAGE: $journal_usage"
     if test -n "$journal_usage"
         _info "  Disk usage: $journal_usage"
@@ -2311,7 +2330,7 @@ function do_install
         if test -z "$wlan_iface"
             for iface in /sys/class/net/*/wireless
                 if test -d "$iface"
-                    set wlan_iface (dirname "$iface" | xargs basename)
+                    set wlan_iface (basename (dirname "$iface"))
                     break
                 end
             end
@@ -2564,7 +2583,7 @@ end
 # Initialize log file
 echo "# CachyOS Dotfiles Installer v$VERSION" > "$LOG_FILE"
 echo "# Started: "(date) >> "$LOG_FILE"
-echo "# Command: $0 $argv" >> "$LOG_FILE"
+echo "# Command: "(status filename)" $argv" >> "$LOG_FILE"
 echo "# Mode: $MODE" >> "$LOG_FILE"
 echo "# Dry-run: $DRY" >> "$LOG_FILE"
 echo "# Unattended: $ALL" >> "$LOG_FILE"

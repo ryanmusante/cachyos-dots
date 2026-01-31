@@ -541,6 +541,8 @@ Run `./ry-install.fish --verify` for comprehensive checks, or `--verify-static` 
 | **99-cachyos-modules.conf** | Module entry | ntsync |
 | **amdgpu-performance.service** | ExecStart | power_dpm_force_performance_level |
 | | After | graphical.target |
+| | Type | oneshot |
+| | RemainAfterExit | yes |
 | | ConditionPathIsDirectory | /sys/class/drm |
 | | WantedBy | graphical.target |
 | **cpupower-epp.service** | ExecStart | energy_performance_preference, scaling_governor |
